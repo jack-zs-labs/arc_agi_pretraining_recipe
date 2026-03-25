@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "portable-reasoning-bundle"
+version = "0.1.0"
+description = "Vendored ARC trajectory sampler and shared reasoning adapters."
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["arc_trajectory_sampler"]

@@ -1,0 +1,12 @@
+config/runtime/*.env.local
+config/runtime/*.secret
+.env.pretraining.local
+.env.hf_upload.local
+.venv*/
+__pycache__/
+*.pyc
+results/
+arc_trajectory_sampler/results/
+arc_trajectory_sampler/data/
+external/
+arc-agi-2/

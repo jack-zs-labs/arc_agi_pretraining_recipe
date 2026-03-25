@@ -1,0 +1,251 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue,
+  citecolor=blue
+}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{assumption}{Assumption}
+\newtheorem{remark}{Remark}
+
+\newcommand{\A}{\mathcal{A}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\X}{\mathcal{X}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\argmin}{\mathop{\mathrm{arg\,min}}}
+\newcommand{\up}{\texttt{up}}
+\newcommand{\downa}{\texttt{down}}
+\newcommand{\lefta}{\texttt{left}}
+\newcommand{\righta}{\texttt{right}}
+
+\title{Adapting FQI-LOG to 3D Grid States with Directional Actions\\
+\large A specialization of ``Switching the Loss Reduces the Cost in Batch Reinforcement Learning''}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note adapts the core idea of FQI-LOG from \emph{Switching the Loss Reduces the Cost in Batch Reinforcement Learning} to environments whose observations are 3D tensors and whose action space is the four-way directional set $\A = \{\up, \downa, \lefta, \righta\}$. In other words, ``3D'' refers here to the state representation, while the control is still a four-action directional policy. The key point is that the original small-cost result already applies to any finite discrete action set, so no new proof machinery is required for four directional actions. The practical changes are instead in the state representation, the Bellman target construction, the action masking at grid boundaries, and the Q-function parameterization. We give a self-contained formulation, the resulting FQI-LOG update, and a compact theorem statement showing that the same small-cost dependence on the optimal cost is preserved.
+\end{abstract}
+
+\section{Introduction}
+The original paper shows that fitted Q-iteration trained with log-loss, rather than squared loss, can enjoy a \emph{small-cost} guarantee in batch reinforcement learning. Informally, when the optimal policy reaches the goal with low cost, the number of samples needed to learn a near-optimal policy improves accordingly.
+
+For a directional control problem, the relevant action space is often not large or continuous. Instead, the learner sees a structured observation such as a tensor $x \in \R^{H \times W \times D}$ and chooses one of four moves: move up, down, left, or right. This is common in grid, voxel, cursor-control, and ARC-style settings. Throughout this note, ``3D'' refers to the observation tensor, not to a three-axis action space. In that regime, the original theory becomes easier to apply, not harder:
+\begin{itemize}[leftmargin=*]
+  \item the action set is finite and fixed,
+  \item the Bellman backup only minimizes over four actions,
+  \item the Q-network only needs a four-logit output head,
+  \item the small-cost guarantee transfers directly.
+\end{itemize}
+
+The main adaptation is therefore to rewrite the MDP and the model class so that they explicitly target 3D tensor states with directional actions.
+
+\section{3D State, 4-Action Batch RL Formulation}
+We consider a discounted MDP
+\[
+M = (\X, \A, P, c, \gamma),
+\]
+where $\gamma \in [0,1)$, the observation space $\X \subseteq [0,1]^{H \times W \times D}$ consists of 3D tensors, and the action space is
+\[
+\A = \{\up, \downa, \lefta, \righta\}.
+\]
+
+\paragraph{Interpretation.}
+The tensor may represent:
+\begin{itemize}[leftmargin=*]
+  \item a 2D grid with $D$ feature channels,
+  \item a stack of $D$ slices over a 2D workspace,
+  \item a true volumetric state, provided the control still consists of planar moves.
+\end{itemize}
+The action semantics are directional. If the environment contains a cursor or agent location $p_t = (r_t, c_t)$, then the action updates that location subject to the environment's transition rules. If the environment moves an object rather than a cursor, the same action labels apply to the controlled object.
+
+\paragraph{Batch data.}
+The offline dataset is
+\[
+D_n = \{(X_i, A_i, C_i, X_i')\}_{i=1}^n,
+\]
+where $X_i, X_i' \in \X$, $A_i \in \A$, and $C_i = c(X_i, A_i) \ge 0$.
+
+\paragraph{Cost normalization.}
+As in the original paper, we assume discounted returns are scaled into $[0,1]$:
+\[
+0 \le \sum_{h=1}^{\infty} \gamma^{h-1} C_h \le 1.
+\]
+This keeps the Bellman targets inside the same range as the log-loss model output.
+
+\paragraph{Action-value function.}
+For any policy $\pi$,
+\[
+q^\pi(x,a) = c(x,a) + \gamma \E[v^\pi(X') \mid X=x, A=a],
+\]
+with
+\[
+v^\pi(x) = \sum_{a \in \A} \pi(a \mid x)\, q^\pi(x,a).
+\]
+The optimal action-value function is
+\[
+q^\star(x,a) = c(x,a) + \gamma \E\left[\min_{a' \in \A} q^\star(X',a') \mid X=x, A=a\right].
+\]
+
+\paragraph{Boundary-aware action masking.}
+In directional environments, some actions may be invalid on the boundary. Let $\A_{\mathrm{valid}}(x) \subseteq \A$ denote the valid actions in state $x$. The natural masked Bellman operator is
+\[
+(Tf)(x,a) = c(x,a) + \gamma \E\left[\min_{a' \in \A_{\mathrm{valid}}(X')} f(X',a') \mid X=x, A=a\right].
+\]
+If the environment treats invalid actions as no-ops or assigns them a fixed penalty, that behavior can be absorbed into $P$ and $c$, in which case the unmasked four-action form is also valid.
+
+\section{Directional FQI-LOG}
+The original algorithm minimizes log-loss against Bellman targets. With directional actions, nothing changes except the state representation and the output head size.
+
+\paragraph{Function class.}
+Let $\F$ be a class of functions $f:\X \times \A \to [0,1]$. In practice, $f$ is represented by a neural network with:
+\begin{itemize}[leftmargin=*]
+  \item an encoder for the 3D tensor input $x$,
+  \item a four-dimensional output head,
+  \item a sigmoid on each output coordinate to keep predictions in $[0,1]$.
+\end{itemize}
+
+A convenient parameterization is
+\[
+g_\theta(x) \in \R^4,\qquad
+f_\theta(x,a) = \sigma(g_\theta(x)_a),
+\]
+where the four coordinates correspond to $(\up, \downa, \lefta, \righta)$ and $\sigma(z)=1/(1+e^{-z})$.
+
+\paragraph{Directional Bellman target.}
+At FQI iteration $j$, given $f_{j-1}$, define
+\[
+Y_i^{(j)} = C_i + \gamma \min_{a' \in \A_{\mathrm{valid}}(X_i')} f_{j-1}(X_i', a').
+\]
+Because both $C_i$ and the discounted return are normalized, $Y_i^{(j)} \in [0,1]$.
+
+\paragraph{Training objective.}
+The log-loss for a prediction $y \in (0,1)$ and target $\tilde y \in [0,1]$ is
+\[
+\ell_{\log}(y,\tilde y) = \tilde y \log\frac{1}{y} + (1-\tilde y)\log\frac{1}{1-y}.
+\]
+The directional FQI-LOG update is
+\[
+f_j \in \argmin_{f \in \F} \sum_{i=1}^n \ell_{\log}\!\left(f(X_i, A_i),\, Y_i^{(j)}\right).
+\]
+
+\paragraph{Returned policy.}
+The greedy policy is
+\[
+\pi_{f_j}(x) \in \argmin_{a \in \A_{\mathrm{valid}}(x)} f_j(x,a).
+\]
+Since the action set has size four, each Bellman backup and each greedy action choice is especially simple.
+
+\section{A Small-Cost Guarantee for Four Directional Actions}
+The original theorem is already stated for arbitrary finite action sets. Specializing to the directional case only fixes $|\A|=4$ and replaces the generic state space by 3D tensors.
+
+\begin{assumption}[Offline data]
+The samples in $D_n$ are i.i.d., $(X_i,A_i) \sim \mu$, $C_i = c(X_i,A_i)$, and $X_i' \sim P(X_i,A_i)$. Costs are nonnegative and normalized so total discounted cost lies in $[0,1]$.
+\end{assumption}
+
+\begin{assumption}[Coverage]
+There exists a finite concentrability constant $C$ such that every admissible state-action distribution induced by some policy from the start-state distribution is absolutely covered by $\mu$ with density ratio at most $C$.
+\end{assumption}
+
+\begin{assumption}[Realizability and completeness]
+The class $\F \subseteq [0,1]^{\X \times \A}$ contains $q^\star$ and is closed under the Bellman optimality operator $T$.
+\end{assumption}
+
+\begin{theorem}[Directional specialization of the FQI-LOG bound]
+Let $\A = \{\up,\downa,\lefta,\righta\}$ and let $\pi_k$ be the policy returned by directional FQI-LOG after $k$ iterations. Under the assumptions above, the same small-cost guarantee as in the original paper holds:
+\[
+\bar v^{\pi_k} - \bar v^\star
+\;\lesssim\;
+\frac{1}{(1-\gamma)^2}
+\left(
+\sqrt{\frac{\bar v^\star C N}{n}}
++
+\frac{C N}{(1-\gamma)^2 n}
++
+\gamma^k
+\right),
+\]
+up to logarithmic factors, where $N$ measures the complexity of $\F$ (for a finite class, $N = \log(|\F|/\delta)$).
+\end{theorem}
+
+\paragraph{What changes in the proof?}
+Only notation and representation:
+\begin{itemize}[leftmargin=*]
+  \item The Bellman minimization is over four actions instead of a generic finite set.
+  \item The Q-function now consumes a 3D tensor input.
+  \item If boundary masking is used, the minimum is taken over $\A_{\mathrm{valid}}(x)$.
+\end{itemize}
+The proof strategy based on log-loss concentration, Hellinger control, and error propagation is otherwise unchanged. In particular, the benefit of log-loss still comes from treating near-zero Bellman targets more carefully than squared loss, which is exactly the regime of interest in sparse-cost goal-reaching tasks.
+
+\section{Modeling Choices for 3D Inputs}
+The main design decision is the encoder for $x \in \R^{H \times W \times D}$.
+
+\paragraph{Case 1: $D$ is a channel dimension.}
+If the input is a 2D grid with $D$ channels, use a standard 2D convolutional encoder:
+\[
+x \in \R^{H \times W \times D}
+\xrightarrow{\text{2D CNN}}
+z \in \R^m
+\xrightarrow{\text{MLP}}
+g_\theta(x) \in \R^4.
+\]
+This is the most likely setup for ARC-style tensors.
+
+\paragraph{Case 2: $D$ is a spatial depth dimension.}
+If the state is truly volumetric, use a 3D convolutional encoder:
+\[
+x \in \R^{H \times W \times D \times C}
+\xrightarrow{\text{3D CNN}}
+z \in \R^m
+\xrightarrow{\text{MLP}}
+g_\theta(x) \in \R^4.
+\]
+The action head still has size four because the control space is directional, not volumetric.
+
+\paragraph{Case 3: a cursor-conditioned controller.}
+If the environment includes a cursor position, concatenate a positional encoding or a one-hot cursor map to the tensor before it is fed to the encoder. This lets the Q-function distinguish ``move up from here'' from the same move in a different location.
+
+\section{Implementation Notes}
+For this setting, the original method becomes operational with the following concrete choices:
+\begin{enumerate}[leftmargin=*]
+  \item Store offline tuples as $(x, a, c, x', m')$, where $m' \in \{0,1\}^4$ marks valid next actions.
+  \item Predict four costs-to-go with a sigmoid head.
+  \item Form the Bellman target with a masked minimum:
+  \[
+  y = c + \gamma \min_{a':\, m'_{a'} = 1} f_{\theta^-}(x', a').
+  \]
+  \item Minimize binary log-loss on the chosen action component only.
+  \item Act greedily with the masked $\argmin$ over the four outputs.
+\end{enumerate}
+
+\begin{remark}[Why log-loss still matters]
+In sparse-cost directional tasks, most successful transitions have Bellman targets close to zero. Log-loss penalizes overestimating those near-zero targets more aggressively than squared loss, which is the mechanism behind the improved small-cost dependence. The four-way action structure does not weaken that effect.
+\end{remark}
+
+\section{Summary}
+To adapt the original paper to 3D observations with actions \{$\up,\downa,\lefta,\righta$\}, no new RL theory is needed. The theory already covers finite discrete actions. The required work is to:
+\begin{itemize}[leftmargin=*]
+  \item specialize the MDP to tensor states and four directional actions,
+  \item use a Q-network with a four-way sigmoid head,
+  \item form masked Bellman targets at boundaries,
+  \item retain log-loss as the regression objective.
+\end{itemize}
+Under the same coverage and realizability assumptions, the small-cost guarantee from the original FQI-LOG analysis transfers directly.
+
+\end{document}

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+export SHARDING_STRATEGY="${SHARDING_STRATEGY:-fsdp_full_shard}"
+export ACTIVATION_CHECKPOINTING="${ACTIVATION_CHECKPOINTING:-1}"
+export STEPS="${STEPS:-500}"
+export BATCH_SIZE="${BATCH_SIZE:-1}"
+export GRAD_ACCUMULATION_STEPS="${GRAD_ACCUMULATION_STEPS:-2}"
+export EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-1}"
+export EVAL_EVERY="${EVAL_EVERY:-100}"
+export MAX_EVAL_BATCHES="${MAX_EVAL_BATCHES:-16}"
+export CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-100}"
+export PREFETCH_BATCHES="${PREFETCH_BATCHES:-8}"
+
+export HIDDEN_SIZE="${HIDDEN_SIZE:-4096}"
+export NUM_LAYERS="${NUM_LAYERS:-32}"
+export NUM_HEADS="${NUM_HEADS:-32}"
+export NUM_KV_HEADS="${NUM_KV_HEADS:-8}"
+export INTERMEDIATE_SIZE="${INTERMEDIATE_SIZE:-14336}"
+export LATENT_KV_DIM="${LATENT_KV_DIM:-512}"
+
+exec "${REPO_ROOT}/scripts/launch_pretraining_lm_48h100.sh"
