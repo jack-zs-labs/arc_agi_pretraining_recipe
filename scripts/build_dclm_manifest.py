@@ -14,6 +14,9 @@ from arc_trajectory_sampler.dclm_corpus import (
     DEFAULT_DCLM_DATASET_ID,
     DEFAULT_DCLM_SPLIT,
     DEFAULT_DCLM_TEXT_FIELD,
+    DCLM_HF_DATASET_URL,
+    DCLM_MAINTAINED_REPO_URL,
+    DCLM_SUBMISSION_REPO_URL,
     iter_dclm_documents,
 )
 from training.corpus_manifest import PretrainingDocument, write_pretraining_manifest
@@ -89,6 +92,16 @@ def main() -> None:
         },
         extra_metadata={
             "builder": "scripts/build_dclm_manifest.py",
+            "dclm_source": {
+                "dataset_id": args.dataset_id,
+                "dataset_url": (
+                    DCLM_HF_DATASET_URL
+                    if args.dataset_id == DEFAULT_DCLM_DATASET_ID
+                    else f"https://huggingface.co/datasets/{args.dataset_id}"
+                ),
+                "submission_repo_url": DCLM_SUBMISSION_REPO_URL,
+                "maintained_repo_url": DCLM_MAINTAINED_REPO_URL,
+            },
         },
     )
     print(json.dumps(manifest, indent=2))

@@ -8,6 +8,9 @@ from typing import Any
 DEFAULT_DCLM_DATASET_ID = "mlfoundations/dclm-baseline-1.0-parquet"
 DEFAULT_DCLM_SPLIT = "train"
 DEFAULT_DCLM_TEXT_FIELD = "text"
+DCLM_SUBMISSION_REPO_URL = "https://github.com/datacomplm/DCLM"
+DCLM_MAINTAINED_REPO_URL = "https://github.com/mlfoundations/dclm"
+DCLM_HF_DATASET_URL = f"https://huggingface.co/datasets/{DEFAULT_DCLM_DATASET_ID}"
 
 
 @dataclass(frozen=True)

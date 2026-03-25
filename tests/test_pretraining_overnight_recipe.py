@@ -36,19 +36,22 @@ class PretrainingOvernightRecipeTests(unittest.TestCase):
                 capture_output=True,
             )
         output = result.stdout
-        self.assertIn("[1/5] build final manifest", output)
+        self.assertIn("[1/6] build final manifest", output)
         self.assertIn("build_pretraining_manifest.py", output)
         self.assertIn("--include-dclm", output)
-        self.assertIn("[2/5] fit final tokenizer", output)
+        self.assertIn("[2/6] fit final tokenizer", output)
         self.assertIn("train_tokenizer.py", output)
         self.assertIn("--tokenizer-task generic", output)
-        self.assertIn("[3/5] pack final corpus", output)
+        self.assertIn("[3/6] pack final corpus", output)
         self.assertIn("pack_pretraining_corpus.py", output)
-        self.assertIn("[4/5] validate packed manifest", output)
+        self.assertIn("[4/6] validate packed manifest", output)
         self.assertIn("validate_packed_pretraining_manifest.py", output)
         self.assertIn("--require-corpus dclm", output)
         self.assertIn("--require-corpus-prefix oscar", output)
-        self.assertIn("[5/5] launch overnight 7B run", output)
+        self.assertIn("[5/6] ensure Hugging Face checkpoint repo", output)
+        self.assertIn("ensure_hf_checkpoint_repo.py", output)
+        self.assertIn("--require-enabled", output)
+        self.assertIn("[6/6] launch overnight 7B run", output)
         self.assertIn("launch_pretraining_lm_8h100_7b.sh", output)
 
     def test_dry_run_respects_overrides(self) -> None:

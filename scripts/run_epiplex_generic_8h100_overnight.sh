@@ -2,6 +2,9 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${REPO_ROOT}/scripts/load_pretraining_env.sh"
+load_pretraining_repo_env "${REPO_ROOT}"
+
 PYTHON_BIN="${PYTHON_BIN:-${REPO_ROOT}/.venv_atari/bin/python}"
 TOKENIZER_REPO_ROOT="${TOKENIZER_REPO_ROOT:-$(cd "${REPO_ROOT}/.." && pwd)/epiplex_tokenizer_trainer}"
 TOKENIZER_PYTHON_BIN="${TOKENIZER_PYTHON_BIN:-$PYTHON_BIN}"
@@ -16,6 +19,8 @@ MANIFEST_DIR="${RUN_ROOT}/manifest"
 TOKENIZER_DIR="${RUN_ROOT}/tokenizer_epiplex_generic_8k"
 PACK_DIR="${RUN_ROOT}/packed_epiplex_seq2048"
 TRAIN_DIR="${RUN_ROOT}/run_8xh100_7b"
+HF_UPLOAD_PATH_PREFIX="${HF_UPLOAD_PATH_PREFIX:-runs/$(basename "${RUN_ROOT}")}"
+export HF_UPLOAD_PATH_PREFIX
 
 run_cmd() {
   printf '+ '
@@ -39,7 +44,7 @@ fi
 
 mkdir -p "$RUN_ROOT"
 
-echo "[1/5] build final manifest"
+echo "[1/6] build final manifest"
 if [[ -f "$MANIFEST_DIR/manifest.json" && "${REBUILD_MANIFEST:-0}" != "1" ]]; then
   echo "Using existing manifest at $MANIFEST_DIR/manifest.json"
 else
@@ -67,7 +72,7 @@ else
     --oscar-graph-repeat "${OSCAR_GRAPH_REPEAT:-32}"
 fi
 
-echo "[2/5] fit final tokenizer"
+echo "[2/6] fit final tokenizer"
 if [[ -f "$TOKENIZER_DIR/reasoning_tokenizer.json" && "${REFIT_TOKENIZER:-0}" != "1" ]]; then
   echo "Using existing tokenizer at $TOKENIZER_DIR/reasoning_tokenizer.json"
 else
@@ -83,7 +88,7 @@ else
     --tokenizer-fit-workers "${TOKENIZER_FIT_WORKERS:-8}"
 fi
 
-echo "[3/5] pack final corpus"
+echo "[3/6] pack final corpus"
 if [[ -f "$PACK_DIR/packed_manifest.json" && "${REPACK_CORPUS:-0}" != "1" ]]; then
   echo "Using existing packed corpus at $PACK_DIR/packed_manifest.json"
 else
@@ -97,7 +102,7 @@ else
     --tokenizer-load "$TOKENIZER_DIR/reasoning_tokenizer.json"
 fi
 
-echo "[4/5] validate packed manifest"
+echo "[4/6] validate packed manifest"
 run_cmd \
   "$PYTHON_BIN" "$REPO_ROOT/scripts/validate_packed_pretraining_manifest.py" \
   --packed-manifest "$PACK_DIR/packed_manifest.json" \
@@ -108,7 +113,12 @@ run_cmd \
   --require-corpus dclm \
   --require-corpus-prefix oscar
 
-echo "[5/5] launch overnight 7B run"
+echo "[5/6] ensure Hugging Face checkpoint repo"
+run_cmd \
+  "$PYTHON_BIN" "$REPO_ROOT/scripts/ensure_hf_checkpoint_repo.py" \
+  --require-enabled
+
+echo "[6/6] launch overnight 7B run"
 TRAIN_TIMEOUT_HOURS="${TRAIN_TIMEOUT_HOURS:-36}"
 TRAIN_COMMAND=(
   env

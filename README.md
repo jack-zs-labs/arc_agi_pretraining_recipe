@@ -254,12 +254,23 @@ The trainer uploads each saved checkpoint plus final `summary.json`,
 `progress.json`, and `summary.csv` from rank 0. Use `required` only when you
 want the run to fail on upload errors.
 
+Before a paid overnight run, explicitly preflight the checkpoint destination:
+
+```bash
+python3 scripts/ensure_hf_checkpoint_repo.py --require-enabled
+```
+
+This validates `HF_TOKEN` / `HF_UPLOAD_TOKEN`, creates the target repo if it
+does not exist yet, and prints the resolved repo URL plus upload path prefix.
+The overnight 8xH100 orchestration script now runs this automatically before
+launching training.
+
 For node-side launches, the pretraining launchers now auto-load repo-local env
 files before applying defaults. The simplest deployment path is:
 
-- copy [config/runtime/hf_upload.env.example](/Users/jjmayo/projects/demo_day/arc-agi/config/runtime/hf_upload.env.example) to `config/runtime/hf_upload.env.local`
+- copy `config/runtime/hf_upload.env.example` to `config/runtime/hf_upload.env.local`
 - put your `HF_UPLOAD_*` values and `HF_TOKEN` there
-- launch as usual; [launch_pretraining_lm_8h100.sh](/Users/jjmayo/projects/demo_day/arc-agi/scripts/launch_pretraining_lm_8h100.sh) and [launch_pretraining_lm_48h100.sh](/Users/jjmayo/projects/demo_day/arc-agi/scripts/launch_pretraining_lm_48h100.sh) source it automatically
+- launch as usual; `scripts/launch_pretraining_lm_8h100.sh` and `scripts/launch_pretraining_lm_48h100.sh` source it automatically
 
 `config/runtime/*.env.local` is gitignored, so the live token stays in your
 working tree and off the tracked repo history.
@@ -273,6 +284,13 @@ python3 scripts/build_large_pretraining_profile.py \
   --include-dclm \
   --dclm-max-documents 200000
 ```
+
+The repo streams the Hugging Face parquet mirror
+`mlfoundations/dclm-baseline-1.0-parquet` and records DCLM provenance in the
+generated manifests. The original submission repo is
+[datacomplm/DCLM](https://github.com/datacomplm/DCLM), and that README now
+points to the maintained upstream at
+[mlfoundations/dclm](https://github.com/mlfoundations/dclm).
 
 For the fastest Oscar-specific bridge into the packed-LM path, build an
 Oscar workflow adapter bundle:

@@ -12,7 +12,14 @@ if str(REPO_ROOT) not in sys.path:
 
 from arc_trajectory_sampler.core_loader import DEFAULT_CORE_DATA_DIR, DEPENDENCY_KIND_CHOICES
 from arc_trajectory_sampler.mixed_reasoning_dataset import DEFAULT_GSM8K_DATA_DIR, DEFAULT_PTRAJ_OLYMPIAD_MATH_CONFIGS
-from arc_trajectory_sampler.dclm_corpus import DEFAULT_DCLM_DATASET_ID, DEFAULT_DCLM_SPLIT, DEFAULT_DCLM_TEXT_FIELD
+from arc_trajectory_sampler.dclm_corpus import (
+    DEFAULT_DCLM_DATASET_ID,
+    DEFAULT_DCLM_SPLIT,
+    DEFAULT_DCLM_TEXT_FIELD,
+    DCLM_HF_DATASET_URL,
+    DCLM_MAINTAINED_REPO_URL,
+    DCLM_SUBMISSION_REPO_URL,
+)
 from arc_trajectory_sampler.mmlu_parser import DEFAULT_MMLU_AUDIT_SPLITS
 from arc_trajectory_sampler.mmlu_parser import DEFAULT_DATA_DIR as DEFAULT_MMLU_DATA_DIR
 from arc_trajectory_sampler.olympiad_math_parser import OLYMPIAD_MATH_EVAL_CONFIGS, OLYMPIAD_MATH_SUPPORTED_CONFIGS
@@ -547,6 +554,16 @@ def main() -> None:
         extra_metadata={
             "builder": "scripts/build_pretraining_manifest.py",
             "build_summary": build_summary,
+            "dclm_source": {
+                "dataset_id": args.dclm_dataset_id,
+                "dataset_url": (
+                    DCLM_HF_DATASET_URL
+                    if args.dclm_dataset_id == DEFAULT_DCLM_DATASET_ID
+                    else f"https://huggingface.co/datasets/{args.dclm_dataset_id}"
+                ),
+                "submission_repo_url": DCLM_SUBMISSION_REPO_URL,
+                "maintained_repo_url": DCLM_MAINTAINED_REPO_URL,
+            },
             "bands_present": sorted({str(document.band) for document in documents}),
             "holdout_groups_present": sorted(
                 {
